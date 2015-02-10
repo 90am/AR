@@ -10,7 +10,9 @@ import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.MatOfPoint3f;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
+import org.opencv.core.TermCriteria;
 import org.opencv.highgui.VideoCapture;
+import org.opencv.imgproc.Imgproc;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
@@ -41,14 +43,14 @@ public class chessboard extends ApplicationAdapter {
 	public MatOfPoint3f objectPoints;
 	public int sizeX;
 	public int sizeZ;
-	ArrayList<ModelInstance> boxes;
+	public ArrayList<ModelInstance> boxes;
 	
 	@Override
 	public void create() {
 		// Set up camera
 		myCamera = new PerspectiveCamera(40, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-		myCamera.position.set(10, 10, 10);
-		myCamera.lookAt(0, 0, 0);
+		/*myCamera.position.set(10, 10, 10);
+		myCamera.lookAt(0, 0, 0);*/
 		myCamera.near = 1;
 		myCamera.far = 300;
 		myCamera.update();
@@ -57,14 +59,14 @@ public class chessboard extends ApplicationAdapter {
 		camera.open(0);
 		cameraFrame = new Mat();
 		
-		sizeX = 6;
-		sizeZ = 4;
+		sizeX = 9;
+		sizeZ = 6;
 		patternSize = new Size(sizeX, sizeZ);
 		corners = new MatOfPoint2f();
 		corners.alloc(sizeX*sizeZ);
 		
 		ModelBuilder modelBuilder = new ModelBuilder();
-		model = modelBuilder.createBox(1, 1, 1, 
+		model = modelBuilder.createBox(0.5f, 0.5f, 0.5f, 
 				new Material(ColorAttribute.createDiffuse(Color.YELLOW)),
 				Usage.Position | Usage.Normal);
 		
@@ -72,8 +74,8 @@ public class chessboard extends ApplicationAdapter {
 		
 		Mat temp = Mat.zeros(sizeX*sizeZ, 1, CvType.CV_32FC3);
 		int position = 0;
-		for(int i=0; i<sizeX; i++){
-			for(int j=0; j<sizeZ; j++){
+		for(int j=0; j<sizeZ; j++){
+			for(int i=0; i<sizeX; i++){
 				temp.put(position, 0, i, 0, j);
 				position++;	
 				boxes.add(new ModelInstance(model, i, 0, j));
@@ -100,16 +102,14 @@ public class chessboard extends ApplicationAdapter {
 		Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 		
 		MatOfPoint2f rvec = new MatOfPoint2f();
-		rvec.alloc(sizeX*sizeZ);
 		MatOfPoint2f tvec = new MatOfPoint2f();
-		tvec.alloc(sizeX*sizeZ);	
 		if (camera.read(cameraFrame)) {
 			if(Calib3d.findChessboardCorners(cameraFrame, patternSize, corners)){
-				//System.out.println(conners.dump());
 				Calib3d.drawChessboardCorners(cameraFrame, patternSize, corners, true);
 				Mat intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().height, (int)cameraFrame.size().width);			
 				Calib3d.solvePnP(objectPoints, corners, intrinsics, UtilAR.getDefaultDistortionCoefficients(), rvec, tvec);
 				UtilAR.setCameraByRT(rvec, tvec, myCamera);
+				myCamera.update();
 				UtilAR.imDrawBackground(cameraFrame);
 				modelBatch.begin(myCamera);
 				modelBatch.render(boxes, environment);
