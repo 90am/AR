@@ -1,9 +1,15 @@
 package com.mygdx.chessboard;
 
+import java.util.ArrayList;
+
+import org.opencv.calib3d.Calib3d;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfPoint2f;
+import org.opencv.core.MatOfPoint3f;
 import org.opencv.core.Scalar;
+import org.opencv.core.Size;
 import org.opencv.highgui.VideoCapture;
 
 import com.badlogic.gdx.ApplicationAdapter;
@@ -22,7 +28,6 @@ import com.badlogic.gdx.graphics.g3d.utils.CameraInputController;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 
 public class chessboard extends ApplicationAdapter {
-	public Mat m1;
 	public Mat cameraFrame;
 	public VideoCapture camera;
 	public Model model;
@@ -31,12 +36,18 @@ public class chessboard extends ApplicationAdapter {
 	public Environment environment;
 	public PerspectiveCamera myCamera;
 	public CameraInputController cameraController;
+	public Size patternSize;
+	public MatOfPoint2f corners;
+	public MatOfPoint3f objectPoints;
+	public int sizeX;
+	public int sizeZ;
+	ArrayList<ModelInstance> boxes;
 	
 	@Override
-	public void create () {
+	public void create() {
 		// Set up camera
-		myCamera = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-		myCamera.position.set(3, 3, 3);
+		myCamera = new PerspectiveCamera(40, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		myCamera.position.set(10, 10, 10);
 		myCamera.lookAt(0, 0, 0);
 		myCamera.near = 1;
 		myCamera.far = 300;
@@ -45,23 +56,39 @@ public class chessboard extends ApplicationAdapter {
 		camera = new VideoCapture(0);
 		camera.open(0);
 		cameraFrame = new Mat();
-
-		// Set up model batch
-		modelBatch = new ModelBatch();
-
-		// Set up model, and create instance
-		ModelBuilder modelBuilder = new ModelBuilder();
 		
-		// Box
+		sizeX = 6;
+		sizeZ = 4;
+		patternSize = new Size(sizeX, sizeZ);
+		corners = new MatOfPoint2f();
+		corners.alloc(sizeX*sizeZ);
+		
+		ModelBuilder modelBuilder = new ModelBuilder();
 		model = modelBuilder.createBox(1, 1, 1, 
 				new Material(ColorAttribute.createDiffuse(Color.YELLOW)),
 				Usage.Position | Usage.Normal);
-		boxInstance = new ModelInstance(model, 1f, 0.5f, 0.75f);
-
-		// Make control of camera possible
-		cameraController = new CameraInputController(myCamera);
-		Gdx.input.setInputProcessor(cameraController);
-
+		
+		boxes = new ArrayList<ModelInstance>();
+		
+		Mat temp = Mat.zeros(sizeX*sizeZ, 1, CvType.CV_32FC3);
+		int position = 0;
+		for(int i=0; i<sizeX; i++){
+			for(int j=0; j<sizeZ; j++){
+				temp.put(position, 0, i, 0, j);
+				position++;	
+				boxes.add(new ModelInstance(model, i, 0, j));
+			}
+		}
+		
+		boxInstance = new ModelInstance(model, 0, 0, 0);
+		
+		System.out.println(temp.dump());
+		objectPoints = new MatOfPoint3f(temp);
+		System.out.println(objectPoints.dump());
+		
+		// Set up model batch
+		modelBatch = new ModelBatch();
+	
 		// Set up lighting
 		environment = new Environment();
 		environment.set(new ColorAttribute(ColorAttribute.Specular, 0.4f, 0.4f, 0.4f, 1f));
@@ -70,17 +97,28 @@ public class chessboard extends ApplicationAdapter {
 
 	@Override
 	public void render () {
-		if (camera.read(cameraFrame)) {
-			UtilAR.imDrawBackground(cameraFrame);
-		}
-
-		// Set size of image
 		Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-
-		// Model batch will render objects
-		modelBatch.begin(myCamera);
-		modelBatch.render(boxInstance, environment);
-		modelBatch.end();
+		
+		MatOfPoint2f rvec = new MatOfPoint2f();
+		rvec.alloc(sizeX*sizeZ);
+		MatOfPoint2f tvec = new MatOfPoint2f();
+		tvec.alloc(sizeX*sizeZ);	
+		if (camera.read(cameraFrame)) {
+			if(Calib3d.findChessboardCorners(cameraFrame, patternSize, corners)){
+				//System.out.println(conners.dump());
+				Calib3d.drawChessboardCorners(cameraFrame, patternSize, corners, true);
+				Mat intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().height, (int)cameraFrame.size().width);			
+				Calib3d.solvePnP(objectPoints, corners, intrinsics, UtilAR.getDefaultDistortionCoefficients(), rvec, tvec);
+				UtilAR.setCameraByRT(rvec, tvec, myCamera);
+				UtilAR.imDrawBackground(cameraFrame);
+				modelBatch.begin(myCamera);
+				modelBatch.render(boxes, environment);
+				modelBatch.end();
+			}
+			else{
+				UtilAR.imDrawBackground(cameraFrame);
+			}
+		}
 	}
 	
 	@Override
