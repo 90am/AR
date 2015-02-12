@@ -77,8 +77,10 @@ public class chessboard extends ApplicationAdapter {
 		for(int j=0; j<sizeZ; j++){
 			for(int i=0; i<sizeX; i++){
 				temp.put(position, 0, i, 0, j);
-				position++;	
-				boxes.add(new ModelInstance(model, i, 0, j));
+				position++;
+				if((position%2) == 1 && j!=0){ 
+					boxes.add(new ModelInstance(model, i, 0, j));
+				}
 			}
 		}
 		
@@ -106,7 +108,7 @@ public class chessboard extends ApplicationAdapter {
 		if (camera.read(cameraFrame)) {
 			if(Calib3d.findChessboardCorners(cameraFrame, patternSize, corners)){
 				Calib3d.drawChessboardCorners(cameraFrame, patternSize, corners, true);
-				Mat intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().height, (int)cameraFrame.size().width);			
+				Mat intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().width, (int)cameraFrame.size().height);			
 				Calib3d.solvePnP(objectPoints, corners, intrinsics, UtilAR.getDefaultDistortionCoefficients(), rvec, tvec);
 				UtilAR.setCameraByRT(rvec, tvec, myCamera);
 				myCamera.update();
