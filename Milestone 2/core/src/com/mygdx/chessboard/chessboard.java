@@ -1,11 +1,14 @@
 package com.mygdx.chessboard;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Timer;
 
 import org.opencv.calib3d.Calib3d;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfDouble;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.MatOfPoint3f;
 import org.opencv.core.Scalar;
@@ -41,9 +44,17 @@ public class chessboard extends ApplicationAdapter {
 	public Size patternSize;
 	public MatOfPoint2f corners;
 	public MatOfPoint3f objectPoints;
+	public MatOfPoint3f objectPoints2;
 	public int sizeX;
 	public int sizeZ;
-	public ArrayList<ModelInstance> boxes;
+	public List<ModelInstance> boxes;
+	public Mat intrinsics;
+	public MatOfDouble distortionCoefficients;
+	public Boolean NotCalibrated = true;
+	public List<Mat> rvecs = new ArrayList<Mat>();
+	public List<Mat> tvecs= new ArrayList<Mat>();
+	public List<Mat> cornerList = new ArrayList<Mat>();
+	public List<Mat> objectPointList = new ArrayList<Mat>();
 	
 	@Override
 	public void create() {
@@ -66,7 +77,7 @@ public class chessboard extends ApplicationAdapter {
 		corners.alloc(sizeX*sizeZ);
 		
 		ModelBuilder modelBuilder = new ModelBuilder();
-		model = modelBuilder.createBox(0.5f, 0.5f, 0.5f, 
+		model = modelBuilder.createBox(1f, 1f, 1f, 
 				new Material(ColorAttribute.createDiffuse(Color.YELLOW)),
 				Usage.Position | Usage.Normal);
 		
@@ -78,9 +89,17 @@ public class chessboard extends ApplicationAdapter {
 			for(int i=0; i<sizeX; i++){
 				temp.put(position, 0, i, 0, j);
 				position++;
-				if((position%2) == 1 && j!=0){ 
-					boxes.add(new ModelInstance(model, i, 0, j));
+				if((position%2) == 1 && j!=sizeZ-1 && i!=sizeX-1){ 
+					boxes.add(new ModelInstance(model, i+0.5f, 0, j+0.5f));
 				}
+			}
+		}
+		Mat temp2 = Mat.zeros(sizeX*sizeZ, 1, CvType.CV_32FC3);
+		int position2 = 0;
+		for(int j=0; j<sizeZ; j++){
+			for(int i=0; i<sizeX; i++){
+				temp2.put(position2, 0, i*26, j*26, 0);
+				position2++;
 			}
 		}
 		
@@ -88,6 +107,7 @@ public class chessboard extends ApplicationAdapter {
 		
 		System.out.println(temp.dump());
 		objectPoints = new MatOfPoint3f(temp);
+		objectPoints2 = new MatOfPoint3f(temp2);
 		System.out.println(objectPoints.dump());
 		
 		// Set up model batch
@@ -97,6 +117,7 @@ public class chessboard extends ApplicationAdapter {
 		environment = new Environment();
 		environment.set(new ColorAttribute(ColorAttribute.Specular, 0.4f, 0.4f, 0.4f, 1f));
 		environment.add(new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f));
+	
 	}
 
 	@Override
@@ -105,12 +126,27 @@ public class chessboard extends ApplicationAdapter {
 		
 		MatOfPoint2f rvec = new MatOfPoint2f();
 		MatOfPoint2f tvec = new MatOfPoint2f();
+		Size imageSize = new Size(0,0); 
 		if (camera.read(cameraFrame)) {
 			if(Calib3d.findChessboardCorners(cameraFrame, patternSize, corners)){
 				Calib3d.drawChessboardCorners(cameraFrame, patternSize, corners, true);
-				Mat intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().width, (int)cameraFrame.size().height);			
-				Calib3d.solvePnP(objectPoints, corners, intrinsics, UtilAR.getDefaultDistortionCoefficients(), rvec, tvec);
+				if(NotCalibrated){
+					intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().width, (int)cameraFrame.size().height);
+					distortionCoefficients = UtilAR.getDefaultDistortionCoefficients();
+				}
+				imageSize = new Size(cameraFrame.size().width, cameraFrame.size().height);
+				Calib3d.solvePnP(objectPoints, corners, intrinsics, distortionCoefficients, rvec, tvec);
 				UtilAR.setCameraByRT(rvec, tvec, myCamera);
+				if(NotCalibrated){
+					try{
+						Thread.sleep(500);
+					}
+					catch(Exception e){}
+					rvecs.add(rvec);
+					tvecs.add(tvec);
+					cornerList.add(corners);
+					objectPointList.add(objectPoints2);
+				}
 				myCamera.update();
 				UtilAR.imDrawBackground(cameraFrame);
 				modelBatch.begin(myCamera);
@@ -121,7 +157,14 @@ public class chessboard extends ApplicationAdapter {
 				UtilAR.imDrawBackground(cameraFrame);
 			}
 		}
+		if(rvecs.size() > 49 && NotCalibrated){
+			System.out.println("ObjectPointList "+objectPointList.size());
+			System.out.println("cornerList "+cornerList.size());
+			Calib3d.calibrateCamera(objectPointList, cornerList, imageSize, intrinsics, distortionCoefficients, rvecs, tvecs, Calib3d.CALIB_USE_INTRINSIC_GUESS);
+			NotCalibrated = false;
+		}		
 	}
+
 	
 	@Override
 	public void dispose() {
