@@ -90,24 +90,24 @@ public class chessboard extends ApplicationAdapter {
 				temp.put(position, 0, i, 0, j);
 				position++;
 				if((position%2) == 1 && j!=sizeZ-1 && i!=sizeX-1){ 
-					boxes.add(new ModelInstance(model, i+0.5f, 0, j+0.5f));
+					boxes.add(new ModelInstance(model, i+0.5f, 0.5f, j+0.5f));
 				}
 			}
 		}
-		/*Mat temp2 = Mat.zeros(sizeX*sizeZ, 1, CvType.CV_32FC3);
+		Mat temp2 = Mat.zeros(sizeX*sizeZ, 1, CvType.CV_32FC3);
 		int position2 = 0;
 		for(int j=0; j<sizeZ; j++){
 			for(int i=0; i<sizeX; i++){
 				temp2.put(position2, 0, i*26, j*26, 0);
 				position2++;
 			}
-		}*/
+		}
 		
 		boxInstance = new ModelInstance(model, 0, 0, 0);
 		
 		System.out.println(temp.dump());
 		objectPoints = new MatOfPoint3f(temp);
-		//objectPoints2 = new MatOfPoint3f(temp2);
+		objectPoints2 = new MatOfPoint3f(temp2);
 		System.out.println(objectPoints.dump());
 		
 		// Set up model batch
@@ -137,7 +137,7 @@ public class chessboard extends ApplicationAdapter {
 				imageSize = new Size(cameraFrame.size().width, cameraFrame.size().height);
 				Calib3d.solvePnP(objectPoints, corners, intrinsics, distortionCoefficients, rvec, tvec);
 				UtilAR.setCameraByRT(rvec, tvec, myCamera);
-				/*if(NotCalibrated){
+				if(NotCalibrated){
 					try{
 						Thread.sleep(500);
 					}
@@ -146,7 +146,7 @@ public class chessboard extends ApplicationAdapter {
 					tvecs.add(tvec);
 					cornerList.add(corners);
 					objectPointList.add(objectPoints2);
-				}*/
+				}
 				myCamera.update();
 				UtilAR.imDrawBackground(cameraFrame);
 				modelBatch.begin(myCamera);
@@ -157,12 +157,12 @@ public class chessboard extends ApplicationAdapter {
 				UtilAR.imDrawBackground(cameraFrame);
 			}
 		}
-		/*if(rvecs.size() > 49 && NotCalibrated){
+		if(rvecs.size() > 10 && NotCalibrated){
 			System.out.println("ObjectPointList "+objectPointList.size());
 			System.out.println("cornerList "+cornerList.size());
 			Calib3d.calibrateCamera(objectPointList, cornerList, imageSize, intrinsics, distortionCoefficients, rvecs, tvecs, Calib3d.CALIB_USE_INTRINSIC_GUESS);
 			NotCalibrated = false;
-		}*/	
+		}
 	}
 
 	
