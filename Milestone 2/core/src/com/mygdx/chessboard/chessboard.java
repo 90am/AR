@@ -66,8 +66,8 @@ public class chessboard extends ApplicationAdapter {
 		myCamera.far = 300;
 		myCamera.update();
 		
-		camera = new VideoCapture(1);
-		camera.open(1);
+		camera = new VideoCapture(0);
+		camera.open(0);
 		cameraFrame = new Mat();
 		
 		sizeX = 9;
