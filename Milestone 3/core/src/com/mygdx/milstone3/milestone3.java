@@ -67,7 +67,11 @@ public class milestone3 extends ApplicationAdapter {
 				MatOfPoint points = new MatOfPoint(polygon.toArray());
 				//Rect rect = Imgproc.boundingRect(points);
 				if(points.rows()==4 && Imgproc.arcLength(contour2f, true) > 320){
-					rects.add(points);
+					Point point1 = new Point(points.get(0,0));
+					Point point2 = new Point(points.get(1,0));
+					if(point1.x*point2.y < point1.y*point2.x ){
+						rects.add(points);
+					}
 				}
 			}				
 			for(int j=0; j<rects.size(); j++){
