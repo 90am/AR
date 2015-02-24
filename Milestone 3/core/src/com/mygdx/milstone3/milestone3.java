@@ -31,6 +31,7 @@ import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
+import com.badlogic.gdx.math.Vector3;
 import com.mygdx.milstone3.UtilAR;
 
 
@@ -48,9 +49,13 @@ public class milestone3 extends ApplicationAdapter {
 	public Mat intrinsics;
 	public MatOfDouble distortionCoefficients;
 	public MatOfPoint3f objectPoints;
-	public PerspectiveCamera myCamera;
+	public MatOfPoint2f homographyPoints;
+ 	public PerspectiveCamera myCamera;
 	public Model model;
-	public ModelInstance boxInstance;
+	public ModelInstance instanceX;
+	public ModelInstance instanceY;
+	public ModelInstance instanceZ;
+	public ArrayList<ModelInstance> instances;
 	public ModelBatch modelBatch;
 	public Environment environment;
 	MatOfPoint2f rvec = new MatOfPoint2f();
@@ -63,7 +68,7 @@ public class milestone3 extends ApplicationAdapter {
 		myCamera = new PerspectiveCamera(40, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 		/*myCamera.position.set(10, 10, 10);
 		myCamera.lookAt(0, 0, 0);*/
-		myCamera.near = 1;
+		myCamera.near = 0.01f;
 		myCamera.far = 300;
 		myCamera.update();
 		
@@ -80,17 +85,35 @@ public class milestone3 extends ApplicationAdapter {
 		Mat temp = Mat.zeros(2*2, 1, CvType.CV_32FC3);
 		temp.put(0, 0, 0, 0, 0);
 		temp.put(1, 0, 1, 0, 0);
-		temp.put(2, 0, 0, 0, 1);
-		temp.put(3, 0, 1, 0, 1);
+		temp.put(2, 0, 1, 0, 1);
+		temp.put(3, 0, 0, 0, 1);
 		
 		objectPoints = new MatOfPoint3f(temp);
 		
+		temp = Mat.zeros(2*2, 1, CvType.CV_32FC3);
+		temp.put(0, 0, 0, 0);
+		temp.put(1, 0, 200, 0);
+		temp.put(2, 0, 200, 200);
+		temp.put(3, 0, 0, 200);
+       	
 		ModelBuilder modelBuilder = new ModelBuilder();
-		model = modelBuilder.createBox(0.5f, 0.5f, 0.5f, 
-				new Material(ColorAttribute.createDiffuse(Color.YELLOW)),
-				Usage.Position | Usage.Normal);
+		model = modelBuilder.createArrow(0f, 0f, 0f, 0.5f, 0f, 0f, 0.1f, 0.3f, 200, 1,
+        		new Material(ColorAttribute.createDiffuse(Color.BLUE)), 
+        		Usage.Position | Usage.Normal);	
+		instanceX = new ModelInstance(model, 0f, 0f, 0f);		
+		model = modelBuilder.createArrow(0f, 0f, 0f, 0f, 0.5f, 0f, 0.1f, 0.3f, 200, 1,
+        		new Material(ColorAttribute.createDiffuse(Color.GREEN)), 
+        		Usage.Position | Usage.Normal);
+		instanceY = new ModelInstance(model, 0f, 0f, 0f);
+		model = modelBuilder.createArrow(0f, 0f, 0f, 0f, 0f, 0.5f, 0.1f, 0.3f, 200, 1,
+        		new Material(ColorAttribute.createDiffuse(Color.RED)), 
+        		Usage.Position | Usage.Normal);
+		instanceZ = new ModelInstance(model, 0f, 0f, 0f);
 		
-		boxInstance = new ModelInstance(model, 0, 0, 0);
+		instances = new ArrayList<ModelInstance>();
+        instances.add(instanceX);
+        instances.add(instanceY);
+        instances.add(instanceZ);
 		
 		modelBatch = new ModelBatch();
 		
@@ -120,7 +143,6 @@ public class milestone3 extends ApplicationAdapter {
 				double approxDistance = Imgproc.arcLength(contour2f, true)*0.02;
 				Imgproc.approxPolyDP(contour2f, polygon, approxDistance , true);
 				MatOfPoint points = new MatOfPoint(polygon.toArray());
-				//Rect rect = Imgproc.boundingRect(points);
 				if(points.rows()==4 && Imgproc.arcLength(contour2f, true) > 200){
 					Point point1 = new Point(points.get(0,0));
 					Point point2 = new Point(points.get(1,0));
@@ -134,43 +156,25 @@ public class milestone3 extends ApplicationAdapter {
 				Point point2 = new Point(rects.get(j).get(1,0));
 				Point point3 = new Point(rects.get(j).get(2,0));
 				Point point4 = new Point(rects.get(j).get(3,0));
-				Core.circle(cameraFrame, point1, 4, new Scalar(68, 228, 153), -1, 8, 0);
-				Core.circle(cameraFrame, point2, 4, new Scalar(68, 228, 153), -1, 8, 0);
-				Core.circle(cameraFrame, point3, 4, new Scalar(68, 228, 153), -1, 8, 0);
-				Core.circle(cameraFrame, point4, 4, new Scalar(68, 228, 153), -1, 8, 0);
 				Core.line(cameraFrame, point1, point2, new Scalar(68, 228, 153), 2);
 				Core.line(cameraFrame, point2, point3, new Scalar(68, 228, 153), 2);
 				Core.line(cameraFrame, point3, point4, new Scalar(68, 228, 153), 2);
-				Core.line(cameraFrame, point4, point1, new Scalar(68, 228, 153), 2);
+				Core.line(cameraFrame, point4, point1, new Scalar(68, 228, 153), 2);		
 			}
-			
-			//MatOfPoint2f rvec = new MatOfPoint2f();
-			//MatOfPoint2f tvec = new MatOfPoint2f();
-			
-			intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().width, (int)cameraFrame.size().height);
-			distortionCoefficients = UtilAR.getDefaultDistortionCoefficients();
-			
-			
-			if(rects.size() != 0){
-				Calib3d.solvePnP(objectPoints, new MatOfPoint2f(rects.get(0).toArray()), intrinsics, distortionCoefficients, rvec, tvec);
-				UtilAR.setCameraByRT(rvec, tvec, myCamera);
+			UtilAR.imDrawBackground(cameraFrame);
+			for(int j=0; j<rects.size(); j++){
+				intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().width, (int)cameraFrame.size().height);
+				distortionCoefficients = UtilAR.getDefaultDistortionCoefficients();
+				MatOfPoint2f imagePoints = new MatOfPoint2f(rects.get(j).toArray());
+				System.out.println(imagePoints.dump());
+				Calib3d.solvePnP(objectPoints, imagePoints, intrinsics, distortionCoefficients, rvec, tvec);
+				Mat output = Calib3d.findHomography(imagePoints, homographyPoints);
+				UtilAR.imToTexture(cameraFrame, UtilAR.createMatTexture(output));
+				UtilAR.setCameraByRT(rvec, tvec, myCamera);			
 				myCamera.update();
-				UtilAR.imDrawBackground(cameraFrame);
 				modelBatch.begin(myCamera);
-				modelBatch.render(new ModelInstance(model, 0.f, 0.f,0.f), environment);
-				modelBatch.end();
-				hasDrawn = true;
-			}else{
-				if(hasDrawn){
-					UtilAR.setCameraByRT(rvec, tvec, myCamera);
-					myCamera.update();
-					UtilAR.imDrawBackground(cameraFrame);
-					modelBatch.begin(myCamera);
-					modelBatch.render(new ModelInstance(model, 0.f, 0.f,0.f), environment);
-					modelBatch.end();
-				}else{					
-					UtilAR.imDrawBackground(cameraFrame);
-				}
+				modelBatch.render(instances, environment);
+				modelBatch.end();				
 			}
 		}	
 	}
