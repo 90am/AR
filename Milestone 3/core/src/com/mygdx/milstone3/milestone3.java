@@ -31,6 +31,8 @@ import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
+import com.badlogic.gdx.math.Vector;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 import com.mygdx.milstone3.UtilAR;
 
@@ -61,6 +63,7 @@ public class milestone3 extends ApplicationAdapter {
 	MatOfPoint2f rvec = new MatOfPoint2f();
 	MatOfPoint2f tvec = new MatOfPoint2f();
 	public boolean hasDrawn = false;
+	public Mat dst;
 	
 	@Override
 	public void create () {
@@ -82,6 +85,8 @@ public class milestone3 extends ApplicationAdapter {
 		hierarchy = new Mat();
 		polygon = new MatOfPoint2f();
 		
+		dst = new Mat(640, 480, CvType.CV_32FC1);
+		
 		Mat temp = Mat.zeros(2*2, 1, CvType.CV_32FC3);
 		temp.put(0, 0, 0, 0, 0);
 		temp.put(1, 0, 1, 0, 0);
@@ -90,11 +95,13 @@ public class milestone3 extends ApplicationAdapter {
 		
 		objectPoints = new MatOfPoint3f(temp);
 		
-		temp = Mat.zeros(2*2, 1, CvType.CV_32FC3);
+		temp = Mat.zeros(2*2, 1, CvType.CV_32FC2);
 		temp.put(0, 0, 0, 0);
-		temp.put(1, 0, 200, 0);
-		temp.put(2, 0, 200, 200);
-		temp.put(3, 0, 0, 200);
+		temp.put(1, 0, 640, 0);
+		temp.put(2, 0, 640, 480);
+		temp.put(3, 0, 0, 480);
+		
+		homographyPoints = new MatOfPoint2f(temp);	
        	
 		ModelBuilder modelBuilder = new ModelBuilder();
 		model = modelBuilder.createArrow(0f, 0f, 0f, 0.5f, 0f, 0f, 0.1f, 0.3f, 200, 1,
@@ -136,7 +143,7 @@ public class milestone3 extends ApplicationAdapter {
 			contours = new ArrayList<MatOfPoint>();
 			rects = new ArrayList<MatOfPoint>();
 			Imgproc.findContours(binaryImage, contours, hierarchy, Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_NONE);
-			System.out.println(contours.size());
+			//System.out.println(contours.size());
 			//Imgproc.drawContours(cameraFrame, contours, -1, new Scalar(245, 7, 253));
 			for(int i=0; i<contours.size(); i++){
 				MatOfPoint2f contour2f = new MatOfPoint2f(contours.get(i).toArray());
@@ -146,7 +153,13 @@ public class milestone3 extends ApplicationAdapter {
 				if(points.rows()==4 && Imgproc.arcLength(contour2f, true) > 200){
 					Point point1 = new Point(points.get(0,0));
 					Point point2 = new Point(points.get(1,0));
-					if(point1.x*point2.y < point1.y*point2.x ){
+					Mat vector1 = Mat.zeros(1, 1, CvType.CV_32FC3);
+					Mat vector2 = Mat.zeros(1, 1, CvType.CV_32FC3);
+					vector1.put(0, 0, point1.x, point1.y, 0);
+					vector2.put(0, 0, point2.x, point2.y, 0);
+					Mat result = Mat.zeros(1, 1, CvType.CV_32FC3); 
+					result = vector1.cross(vector2);
+					if(result.get(0, 0)[2] < 0){
 						rects.add(points);
 					}
 				}
@@ -166,15 +179,17 @@ public class milestone3 extends ApplicationAdapter {
 				intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().width, (int)cameraFrame.size().height);
 				distortionCoefficients = UtilAR.getDefaultDistortionCoefficients();
 				MatOfPoint2f imagePoints = new MatOfPoint2f(rects.get(j).toArray());
-				System.out.println(imagePoints.dump());
+				//System.out.println(imagePoints.dump());
 				Calib3d.solvePnP(objectPoints, imagePoints, intrinsics, distortionCoefficients, rvec, tvec);
-				Mat output = Calib3d.findHomography(imagePoints, homographyPoints);
-				UtilAR.imToTexture(cameraFrame, UtilAR.createMatTexture(output));
+				Mat output = Calib3d.findHomography(imagePoints, homographyPoints);				
+				Imgproc.warpPerspective(cameraFrame, dst, output, new Size(640,480));
+				UtilAR.imShow(dst);
+				System.out.println(output.dump());
 				UtilAR.setCameraByRT(rvec, tvec, myCamera);			
 				myCamera.update();
 				modelBatch.begin(myCamera);
 				modelBatch.render(instances, environment);
-				modelBatch.end();				
+				modelBatch.end();			
 			}
 		}	
 	}
