@@ -40,6 +40,7 @@ import com.mygdx.milstone3.UtilAR;
 public class milestone3 extends ApplicationAdapter {
 	public Mat cameraFrame;
 	public Mat grayImage;
+	public Mat grayImage2;
 	public Mat binaryImage;
 	public Mat binaryImage2;
 	public Mat blur;
@@ -60,10 +61,12 @@ public class milestone3 extends ApplicationAdapter {
 	public ArrayList<ModelInstance> instances;
 	public ModelBatch modelBatch;
 	public Environment environment;
-	MatOfPoint2f rvec = new MatOfPoint2f();
-	MatOfPoint2f tvec = new MatOfPoint2f();
+	public MatOfPoint2f rvec = new MatOfPoint2f();
+	public MatOfPoint2f tvec = new MatOfPoint2f();
 	public boolean hasDrawn = false;
 	public Mat dst;
+	public MatOfPoint2f imagePoints;
+	public Mat output;
 	
 	@Override
 	public void create () {
@@ -79,13 +82,14 @@ public class milestone3 extends ApplicationAdapter {
 		camera.open(0);
 		cameraFrame = new Mat();
 		grayImage = new Mat();
+		grayImage2 = new Mat();
 		binaryImage = new Mat();
 		binaryImage2 = new Mat();
 		blur = new Mat();
 		hierarchy = new Mat();
 		polygon = new MatOfPoint2f();
 		
-		dst = new Mat(640, 480, CvType.CV_32FC1);
+		dst = new Mat(200, 200, CvType.CV_32FC1);
 		
 		Mat temp = Mat.zeros(2*2, 1, CvType.CV_32FC3);
 		temp.put(0, 0, 0, 0, 0);
@@ -97,9 +101,9 @@ public class milestone3 extends ApplicationAdapter {
 		
 		temp = Mat.zeros(2*2, 1, CvType.CV_32FC2);
 		temp.put(0, 0, 0, 0);
-		temp.put(1, 0, 640, 0);
-		temp.put(2, 0, 640, 480);
-		temp.put(3, 0, 0, 480);
+		temp.put(1, 0, 200, 0);
+		temp.put(2, 0, 200, 200);
+		temp.put(3, 0, 0, 200);
 		
 		homographyPoints = new MatOfPoint2f(temp);	
        	
@@ -164,7 +168,7 @@ public class milestone3 extends ApplicationAdapter {
 					}
 				}
 			}				
-			for(int j=0; j<rects.size(); j++){
+			/*for(int j=0; j<rects.size(); j++){
 				Point point1 = new Point(rects.get(j).get(0,0));
 				Point point2 = new Point(rects.get(j).get(1,0));
 				Point point3 = new Point(rects.get(j).get(2,0));
@@ -173,18 +177,21 @@ public class milestone3 extends ApplicationAdapter {
 				Core.line(cameraFrame, point2, point3, new Scalar(68, 228, 153), 2);
 				Core.line(cameraFrame, point3, point4, new Scalar(68, 228, 153), 2);
 				Core.line(cameraFrame, point4, point1, new Scalar(68, 228, 153), 2);		
-			}
+			}*/
 			UtilAR.imDrawBackground(cameraFrame);
 			for(int j=0; j<rects.size(); j++){
 				intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().width, (int)cameraFrame.size().height);
 				distortionCoefficients = UtilAR.getDefaultDistortionCoefficients();
-				MatOfPoint2f imagePoints = new MatOfPoint2f(rects.get(j).toArray());
+				imagePoints = new MatOfPoint2f(rects.get(j).toArray());
 				//System.out.println(imagePoints.dump());
 				Calib3d.solvePnP(objectPoints, imagePoints, intrinsics, distortionCoefficients, rvec, tvec);
-				Mat output = Calib3d.findHomography(imagePoints, homographyPoints);				
-				Imgproc.warpPerspective(cameraFrame, dst, output, new Size(640,480));
-				UtilAR.imShow(dst);
-				System.out.println(output.dump());
+				output = Calib3d.findHomography(imagePoints, homographyPoints);				
+				Imgproc.warpPerspective(cameraFrame, dst, output, new Size(200,200));
+				//System.out.println(output.dump());
+				Imgproc.cvtColor(dst, grayImage2, Imgproc.COLOR_BGR2GRAY);
+				Imgproc.threshold(grayImage2, binaryImage2, -1, 255, Imgproc.THRESH_BINARY+Imgproc.THRESH_OTSU);
+				UtilAR.imShow(binaryImage2);
+				System.out.println(getCode(binaryImage2));
 				UtilAR.setCameraByRT(rvec, tvec, myCamera);			
 				myCamera.update();
 				modelBatch.begin(myCamera);
@@ -193,4 +200,29 @@ public class milestone3 extends ApplicationAdapter {
 			}
 		}	
 	}
+	
+	public String getCode(Mat m){
+		int squareSize = (int) m.size().height/8;
+		int halfSquareSize = squareSize/2;
+		String result = "";
+		int row = 0;
+		int col = 0;
+		for(int i=0; i<8; i++){
+			row = i*squareSize+halfSquareSize;
+			for(int j=0; j<8; j++){
+				col = j*squareSize+halfSquareSize;
+				if((int) m.get(row, col)[0] > 0){
+					result += "1";
+				}
+				else{
+					result += "0";
+				}
+			}
+		}
+		return result;
+	}
+	
 }
+
+
+
