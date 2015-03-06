@@ -1,7 +1,9 @@
 package com.mygdx.milstone3;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.opencv.calib3d.Calib3d;
 import org.opencv.core.Core;
@@ -19,6 +21,7 @@ import org.opencv.highgui.VideoCapture;
 import org.opencv.imgproc.Imgproc;
 
 import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Files.FileType;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
@@ -30,10 +33,12 @@ import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
+import com.badlogic.gdx.graphics.g3d.loader.G3dModelLoader;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.UBJsonReader;
 import com.mygdx.milstone3.UtilAR;
 
 
@@ -58,7 +63,7 @@ public class milestone3 extends ApplicationAdapter {
 	public ModelInstance instanceX;
 	public ModelInstance instanceY;
 	public ModelInstance instanceZ;
-	public ArrayList<ModelInstance> instances;
+	public ArrayList<ModelInstance> instancesToRender;
 	public ModelBatch modelBatch;
 	public Environment environment;
 	public MatOfPoint2f rvec = new MatOfPoint2f();
@@ -67,16 +72,37 @@ public class milestone3 extends ApplicationAdapter {
 	public Mat dst;
 	public MatOfPoint2f imagePoints;
 	public Mat output;
+	public String marker1 = "0000000001011010010000100010001001111000011001000000111000000000";
+	public String marker2 = "0000000000000000000010100110101001001110011101100001110000000000";
+	public List<Mat> knownMarkers;
+	public List<Model> models3d;
+	public ModelInstance fancy3dModelInstance;
 	
 	@Override
 	public void create () {
+		
 		// Set up camera
 		myCamera = new PerspectiveCamera(40, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-		/*myCamera.position.set(10, 10, 10);
-		myCamera.lookAt(0, 0, 0);*/
 		myCamera.near = 0.01f;
 		myCamera.far = 300;
+		UtilAR.setNeutralCamera(myCamera);
 		myCamera.update();
+		
+		instancesToRender = new ArrayList<ModelInstance>();
+		knownMarkers = new ArrayList<Mat>();
+		models3d = new ArrayList<Model>();	
+		
+		addMarker(marker1);
+		addMarker(marker2);
+		
+		UBJsonReader jsonReader = new UBJsonReader();
+		G3dModelLoader modelLoader = new G3dModelLoader(jsonReader);
+		model = modelLoader.loadModel(Gdx.files.getFileHandle("SpaceShip/statek.dae.g3db", FileType.Internal));
+		models3d.add(model);
+		/*model = modelLoader.loadModel(Gdx.files.getFileHandle("Eye/eye_pot.g3db", FileType.Internal));
+		models3d.add(model);*/	
+		model = modelLoader.loadModel(Gdx.files.getFileHandle("Jeep/jeep.g3db", FileType.Internal));
+		models3d.add(model);
 		
 		camera = new VideoCapture(0);
 		camera.open(0);
@@ -107,7 +133,7 @@ public class milestone3 extends ApplicationAdapter {
 		
 		homographyPoints = new MatOfPoint2f(temp);	
        	
-		ModelBuilder modelBuilder = new ModelBuilder();
+		/*ModelBuilder modelBuilder = new ModelBuilder();
 		model = modelBuilder.createArrow(0f, 0f, 0f, 0.5f, 0f, 0f, 0.1f, 0.3f, 200, 1,
         		new Material(ColorAttribute.createDiffuse(Color.BLUE)), 
         		Usage.Position | Usage.Normal);	
@@ -121,10 +147,9 @@ public class milestone3 extends ApplicationAdapter {
         		Usage.Position | Usage.Normal);
 		instanceZ = new ModelInstance(model, 0f, 0f, 0f);
 		
-		instances = new ArrayList<ModelInstance>();
-        instances.add(instanceX);
-        instances.add(instanceY);
-        instances.add(instanceZ);
+		instancesToRender.add(instanceX);
+        instancesToRender.add(instanceY);
+        instancesToRender.add(instanceZ);*/
 		
 		modelBatch = new ModelBatch();
 		
@@ -178,7 +203,9 @@ public class milestone3 extends ApplicationAdapter {
 				Core.line(cameraFrame, point3, point4, new Scalar(68, 228, 153), 2);
 				Core.line(cameraFrame, point4, point1, new Scalar(68, 228, 153), 2);		
 			}*/
+			
 			UtilAR.imDrawBackground(cameraFrame);
+			instancesToRender = new ArrayList<ModelInstance>();
 			for(int j=0; j<rects.size(); j++){
 				intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().width, (int)cameraFrame.size().height);
 				distortionCoefficients = UtilAR.getDefaultDistortionCoefficients();
@@ -191,36 +218,85 @@ public class milestone3 extends ApplicationAdapter {
 				Imgproc.cvtColor(dst, grayImage2, Imgproc.COLOR_BGR2GRAY);
 				Imgproc.threshold(grayImage2, binaryImage2, -1, 255, Imgproc.THRESH_BINARY+Imgproc.THRESH_OTSU);
 				UtilAR.imShow(binaryImage2);
-				System.out.println(getCode(binaryImage2));
-				UtilAR.setCameraByRT(rvec, tvec, myCamera);			
+				Mat currentMarker = getCode(binaryImage2);
+				//UtilAR.setCameraByRT(rvec, tvec, myCamera);			
+				int modelIndex = knownMarkersContains(currentMarker);				
+				if(modelIndex != -1){
+					fancy3dModelInstance = new ModelInstance(models3d.get(modelIndex), 0f, 0f, 0f);
+					System.out.println(tvec.dump());
+					UtilAR.setTransformByRT(rvec, tvec, fancy3dModelInstance.transform);
+					fancy3dModelInstance.transform.translate(0.5f, 0.5f, 0.5f);
+					instancesToRender.add(fancy3dModelInstance);
+				}		
 				myCamera.update();
 				modelBatch.begin(myCamera);
-				modelBatch.render(instances, environment);
-				modelBatch.end();			
-			}
+				modelBatch.render(instancesToRender, environment);
+				modelBatch.end();
+			}	
 		}	
 	}
 	
-	public String getCode(Mat m){
+	public void addMarker(String s){		
+		Mat marker = Mat.zeros(8, 8, CvType.CV_32FC1);
+		char[] stringArray = s.toCharArray();
+		int counter = 0;
+		for(int i=0; i<8; i++){
+			for(int j=0; j<8; j++){
+				int current = Character.getNumericValue(stringArray[counter]);
+				marker.put(i, j, current);
+				counter++;
+			}
+		}	
+		knownMarkers.add(marker);
+	}
+	
+	public int knownMarkersContains(Mat m){
+		Mat temp = new Mat();
+		Mat temp2 = new Mat();
+		temp2 = m;
+		for(int i=0; i<4; i++){
+			Core.transpose(temp2, temp);
+			Core.flip(temp, temp2, 1);
+			for(int j=0; j<knownMarkers.size(); j++){
+				if(knownMarkers.get(j).dump().equals(m.dump())){
+					return j;
+				}
+			}
+		}
+		return -1;
+	}
+	
+	public Mat getCode(Mat m){
 		int squareSize = (int) m.size().height/8;
-		int halfSquareSize = squareSize/2;
-		String result = "";
+		Mat result = Mat.zeros(8, 8, CvType.CV_32FC1);
 		int row = 0;
 		int col = 0;
 		for(int i=0; i<8; i++){
-			row = i*squareSize+halfSquareSize;
+			row = i*squareSize;
 			for(int j=0; j<8; j++){
-				col = j*squareSize+halfSquareSize;
-				if((int) m.get(row, col)[0] > 0){
-					result += "1";
+				col = j*squareSize;
+				int temp = 0;
+					for(int h=0; h<squareSize; h++){
+						for(int k=0; k<squareSize; k++){				
+							if((int) m.get(row+h, col+k)[0] > 0){
+								temp += 1;
+							}
+							else{
+								temp += 0;
+							}
+						}
+					}
+				if(temp > (squareSize*squareSize)/2){
+					result.put(i, j, 1);
 				}
 				else{
-					result += "0";
+					result.put(i, j, 0);
 				}
 			}
 		}
 		return result;
 	}
+	
 	
 }
 
