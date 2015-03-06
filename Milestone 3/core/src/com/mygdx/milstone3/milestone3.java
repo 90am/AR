@@ -14,6 +14,7 @@ import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.MatOfPoint3f;
 import org.opencv.core.Point;
+import org.opencv.core.Point3;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
@@ -38,6 +39,7 @@ import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.math.collision.BoundingBox;
 import com.badlogic.gdx.utils.UBJsonReader;
 import com.mygdx.milstone3.UtilAR;
 
@@ -77,6 +79,7 @@ public class milestone3 extends ApplicationAdapter {
 	public List<Mat> knownMarkers;
 	public List<Model> models3d;
 	public ModelInstance fancy3dModelInstance;
+	public ModelBuilder modelBuilder;
 	
 	@Override
 	public void create () {
@@ -133,8 +136,8 @@ public class milestone3 extends ApplicationAdapter {
 		
 		homographyPoints = new MatOfPoint2f(temp);	
        	
-		/*ModelBuilder modelBuilder = new ModelBuilder();
-		model = modelBuilder.createArrow(0f, 0f, 0f, 0.5f, 0f, 0f, 0.1f, 0.3f, 200, 1,
+		modelBuilder = new ModelBuilder();
+		/*model = modelBuilder.createArrow(0f, 0f, 0f, 0.5f, 0f, 0f, 0.1f, 0.3f, 200, 1,
         		new Material(ColorAttribute.createDiffuse(Color.BLUE)), 
         		Usage.Position | Usage.Normal);	
 		instanceX = new ModelInstance(model, 0f, 0f, 0f);		
@@ -157,7 +160,6 @@ public class milestone3 extends ApplicationAdapter {
 		environment = new Environment();
 		environment.set(new ColorAttribute(ColorAttribute.Specular, 0.4f, 0.4f, 0.4f, 1f));
 		environment.add(new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f));
-
 	}
 
 	@Override
@@ -203,9 +205,9 @@ public class milestone3 extends ApplicationAdapter {
 				Core.line(cameraFrame, point3, point4, new Scalar(68, 228, 153), 2);
 				Core.line(cameraFrame, point4, point1, new Scalar(68, 228, 153), 2);		
 			}*/
-			
-			UtilAR.imDrawBackground(cameraFrame);
 			instancesToRender = new ArrayList<ModelInstance>();
+			int first = 0;
+			int seccond = 0;
 			for(int j=0; j<rects.size(); j++){
 				intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().width, (int)cameraFrame.size().height);
 				distortionCoefficients = UtilAR.getDefaultDistortionCoefficients();
@@ -223,16 +225,33 @@ public class milestone3 extends ApplicationAdapter {
 				int modelIndex = knownMarkersContains(currentMarker);				
 				if(modelIndex != -1){
 					fancy3dModelInstance = new ModelInstance(models3d.get(modelIndex), 0f, 0f, 0f);
-					System.out.println(tvec.dump());
 					UtilAR.setTransformByRT(rvec, tvec, fancy3dModelInstance.transform);
 					fancy3dModelInstance.transform.translate(0.5f, 0.5f, 0.5f);
 					instancesToRender.add(fancy3dModelInstance);
+					if(modelIndex == 0){
+						first = j;
+					}
+					else{
+						seccond = j;
+					}
 				}		
-				myCamera.update();
-				modelBatch.begin(myCamera);
-				modelBatch.render(instancesToRender, environment);
-				modelBatch.end();
-			}	
+				if(instancesToRender.size() > 1){
+					BoundingBox box1 = new BoundingBox();
+					instancesToRender.get(0).calculateBoundingBox(box1);
+					BoundingBox box2 = new BoundingBox();
+					instancesToRender.get(1).calculateBoundingBox(box2);
+					System.out.println(instancesToRender.size());
+					Point3 p2 = new Point3();
+					System.out.println(box1.getCenter());
+					System.out.println(box2.getCenter());
+					
+					//Core.line(cameraFrame, new Point(rects.get(first).get(0,0)), new Point(rects.get(seccond).get(0,0)), new Scalar(68, 228, 153), 2);
+				}						
+			}
+			UtilAR.imDrawBackground(cameraFrame);
+			modelBatch.begin(myCamera);
+			modelBatch.render(instancesToRender, environment);
+			modelBatch.end();
 		}	
 	}
 	
