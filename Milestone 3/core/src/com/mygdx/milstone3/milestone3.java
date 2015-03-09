@@ -25,6 +25,7 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Files.FileType;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Mesh;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.graphics.g3d.Environment;
@@ -70,6 +71,8 @@ public class milestone3 extends ApplicationAdapter {
 	public Environment environment;
 	public MatOfPoint2f rvec = new MatOfPoint2f();
 	public MatOfPoint2f tvec = new MatOfPoint2f();
+	public List<MatOfPoint2f> rvecs = new ArrayList<MatOfPoint2f>();
+	public List<MatOfPoint2f> tvecs = new ArrayList<MatOfPoint2f>();
 	public boolean hasDrawn = false;
 	public Mat dst;
 	public MatOfPoint2f imagePoints;
@@ -100,11 +103,11 @@ public class milestone3 extends ApplicationAdapter {
 		
 		UBJsonReader jsonReader = new UBJsonReader();
 		G3dModelLoader modelLoader = new G3dModelLoader(jsonReader);
-		model = modelLoader.loadModel(Gdx.files.getFileHandle("SpaceShip/statek.dae.g3db", FileType.Internal));
+		model = modelLoader.loadModel(Gdx.files.getFileHandle("Models/statek.dae.g3db", FileType.Internal));
 		models3d.add(model);
-		/*model = modelLoader.loadModel(Gdx.files.getFileHandle("Eye/eye_pot.g3db", FileType.Internal));
-		models3d.add(model);*/	
-		model = modelLoader.loadModel(Gdx.files.getFileHandle("Jeep/jeep.g3db", FileType.Internal));
+		model = modelLoader.loadModel(Gdx.files.getFileHandle("Models/jeep.g3db", FileType.Internal));
+		models3d.add(model);
+		model = modelLoader.loadModel(Gdx.files.getFileHandle("Models/fish_muscle.g3db", FileType.Internal));
 		models3d.add(model);
 		
 		camera = new VideoCapture(0);
@@ -206,8 +209,8 @@ public class milestone3 extends ApplicationAdapter {
 				Core.line(cameraFrame, point4, point1, new Scalar(68, 228, 153), 2);		
 			}*/
 			instancesToRender = new ArrayList<ModelInstance>();
-			int first = 0;
-			int seccond = 0;
+			rvecs = new ArrayList<MatOfPoint2f>();
+			tvecs = new ArrayList<MatOfPoint2f>();
 			for(int j=0; j<rects.size(); j++){
 				intrinsics = UtilAR.getDefaultIntrinsicMatrix((int)cameraFrame.size().width, (int)cameraFrame.size().height);
 				distortionCoefficients = UtilAR.getDefaultDistortionCoefficients();
@@ -226,25 +229,35 @@ public class milestone3 extends ApplicationAdapter {
 				if(modelIndex != -1){
 					fancy3dModelInstance = new ModelInstance(models3d.get(modelIndex), 0f, 0f, 0f);
 					UtilAR.setTransformByRT(rvec, tvec, fancy3dModelInstance.transform);
+					MatOfPoint2f rvecCopy = new MatOfPoint2f();
+					MatOfPoint2f tvecCopy = new MatOfPoint2f();
+					rvec.copyTo(rvecCopy);
+					tvec.copyTo(tvecCopy);
+					rvecs.add(rvecCopy);
+					tvecs.add(tvecCopy);
 					fancy3dModelInstance.transform.translate(0.5f, 0.5f, 0.5f);
 					instancesToRender.add(fancy3dModelInstance);
-					if(modelIndex == 0){
-						first = j;
-					}
-					else{
-						seccond = j;
-					}
 				}		
-				if(instancesToRender.size() > 1){
-					BoundingBox box1 = new BoundingBox();
-					instancesToRender.get(0).calculateBoundingBox(box1);
-					BoundingBox box2 = new BoundingBox();
-					instancesToRender.get(1).calculateBoundingBox(box2);
-					System.out.println(instancesToRender.size());
-					Point3 p2 = new Point3();
-					System.out.println(box1.getCenter());
-					System.out.println(box2.getCenter());
-					
+				if(instancesToRender.size() > 1){				
+					Vector3 position1 = new  Vector3();
+					instancesToRender.get(0).transform.getTranslation(position1);
+					Vector3 position2 = new  Vector3();
+					instancesToRender.get(1).transform.getTranslation(position2);
+					/*System.out.println(position1);
+					System.out.println(position2);
+					System.out.println(checkPositions(position1, position2));*/
+					if(checkPositions(position1, position2)){
+						System.out.println(tvecs.size());
+						instancesToRender = new ArrayList<ModelInstance>();
+						fancy3dModelInstance = new ModelInstance(models3d.get(2), 0f, 0f, 0f);
+						UtilAR.setTransformByRT(rvecs.get(0), tvecs.get(0), fancy3dModelInstance.transform);		
+						fancy3dModelInstance.transform.translate(0.5f, 0.5f, 0.5f);		
+						instancesToRender.add(fancy3dModelInstance);
+						fancy3dModelInstance = new ModelInstance(models3d.get(2), 0f, 0f, 0f);
+						UtilAR.setTransformByRT(rvecs.get(1), tvecs.get(1), fancy3dModelInstance.transform);
+						fancy3dModelInstance.transform.translate(0.5f, 0.5f, 0.5f);		
+						instancesToRender.add(fancy3dModelInstance);
+					}				
 					//Core.line(cameraFrame, new Point(rects.get(first).get(0,0)), new Point(rects.get(seccond).get(0,0)), new Scalar(68, 228, 153), 2);
 				}						
 			}
@@ -253,6 +266,15 @@ public class milestone3 extends ApplicationAdapter {
 			modelBatch.render(instancesToRender, environment);
 			modelBatch.end();
 		}	
+	}
+ 	
+	public boolean checkPositions(Vector3 pos1, Vector3 pos2){
+		boolean res = false;
+		float distance = pos1.dst2(pos2);
+		if(distance < 2){
+			res = true;
+		}
+		return res;
 	}
 	
 	public void addMarker(String s){		
